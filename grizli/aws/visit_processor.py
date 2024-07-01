@@ -2313,7 +2313,7 @@ def cutout_mosaic(rootname='gds', product='{rootname}-{f}', ra=53.1615666, dec=-
                                      **kwargs,
                                      )
                              
-        outsci, outwht, header, flist, wcs_tab = _
+        outsci, outwht, outctx, header, flist, wcs_tab = _
         
         wcs_tab.write('{0}_wcs.csv'.format(visit['product']), overwrite=True)
         
@@ -2351,6 +2351,10 @@ def cutout_mosaic(rootname='gds', product='{rootname}-{f}', ra=53.1615666, dec=-
     
         pyfits.writeto('{0}_{1}_wht.fits'.format(visit['product'], drz),
                       data=outwht, header=header, 
+                      overwrite=True)
+        
+        pyfits.writeto('{0}_{1}_ctx.fits'.format(visit['product'], drz),
+                      data=outctx, header=header, 
                       overwrite=True)
         
         if make_exptime_map:
@@ -2873,7 +2877,7 @@ def make_mosaic(jname='', ds9=None, skip_existing=True, ir_scale=0.1, half_optic
                                      weight_type=weight_type,
                                      )
                              
-        outsci, outwht, header, flist, wcs_tab = _
+        outsci, outwht, outctx, header, flist, wcs_tab = _
     
         pyfits.writeto(groups[f]['product']+'_drz_sci.fits',
                        data=outsci, header=header, 
@@ -2881,6 +2885,10 @@ def make_mosaic(jname='', ds9=None, skip_existing=True, ir_scale=0.1, half_optic
     
         pyfits.writeto(groups[f]['product']+'_drz_wht.fits',
                       data=outwht, header=header, 
+                      overwrite=True)
+
+        pyfits.writeto(groups[f]['product']+'_drz_ctx.fits',
+                      data=outctx, header=header, 
                       overwrite=True)
     
     if ds9 is not None:

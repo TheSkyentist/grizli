@@ -8131,7 +8131,7 @@ def drizzle_from_visit(
         wcs_tab = GTable(names=wcs_colnames, rows=wcs_rows)
 
         outwht *= (wcs_i.pscale / outputwcs.pscale) ** 4
-        return outsci, outwht, header, flist, wcs_tab
+        return outsci, outwht, outctx, header, flist, wcs_tab
 
 
 def drizzle_array_groups(
