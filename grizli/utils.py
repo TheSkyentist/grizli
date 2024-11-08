@@ -8258,6 +8258,7 @@ def drizzle_from_visit(
                 calc_wcsmap=calc_wcsmap,
                 verbose=verbose,
                 data=data,
+                first_uniqid=count + 1,
             )
 
             outsci, outwht, outvar, outctx = res[:4]
@@ -8329,6 +8330,7 @@ def drizzle_array_groups(
     calc_wcsmap=False,
     verbose=True,
     data=None,
+    first_uniqid=1,
 ):
     """
     Drizzle array data with associated wcs
@@ -8376,6 +8378,9 @@ def drizzle_array_groups(
         ``data = outsci, outwht, outctx, varnum``, where ``varnum = outvar * outwht``
 
         If not provided, new arrays will be created.
+
+    first_uniqid : int, optional
+        First `uniqid` value to use for the drizzle for contex maps
 
     Returns
     -------
@@ -8542,7 +8547,7 @@ def drizzle_array_groups(
             "cps",
             1,
             wcslin_pscale=wcs_list[i].pscale,
-            uniqid=i+1,
+            uniqid=first_uniqid + i,
             pixfrac=pixfrac,
             kernel=kernel,
             fillval="0",
@@ -8562,7 +8567,7 @@ def drizzle_array_groups(
                 "cps",
                 1,
                 wcslin_pscale=wcs_list[i].pscale,
-                uniqid=i+1,
+                uniqid=first_uniqid + i,
                 pixfrac=pixfrac,
                 kernel=kernel,
                 fillval="0",
