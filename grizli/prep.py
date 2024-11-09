@@ -6399,8 +6399,8 @@ def get_jwst_wfssbkg_file(file, valid_flat=[0.6, 1.3], make_figure=False, verbos
     if os.path.exists(local_bkg_file):
         
         h = pyfits.getheader(local_bkg_file,0)
-        if 'DATE' not in h:
-            msg = f'Use local wfssbkg file {local_bkg_file} (Warning: no DATE keyword)'
+        if ('DATE' not in h) or (bkg_file == 'N/A' and ignoreNA):
+            msg = f'Use local wfssbkg file {local_bkg_file}'
             utils.log_comment(utils.LOGFILE, msg, verbose=verbose)
             return local_bkg_file
         elif h['DATE'] == pyfits.getval(bkg_file,'DATE',0):
