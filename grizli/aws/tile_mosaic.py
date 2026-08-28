@@ -15,7 +15,7 @@ from . import db
 
 PIXEL_SCALE = 0.1
 
-def define_tile_grid(a=4., phase=0.6):
+def define_tile_grid(a=4., phase=0.6, offset_crpix=0.5, round_npix=512):
     """
     Define the tile grid following the PS1 tesselation algorithm from 
     T. Budavari
@@ -160,7 +160,7 @@ def define_tile_grid(a=4., phase=0.6):
                     
         ai = 2*np.tan(tn[j]/2)*180/np.pi
         npix = ai*3600/PIXEL_SCALE
-        npixr = int(npix // 512 + 1)*512
+        npixr = int(npix // round_npix + 1) * round_npix
         ai = npixr*PIXEL_SCALE/3600
         da.append(ai)
         dpix.append(npixr)
@@ -169,8 +169,8 @@ def define_tile_grid(a=4., phase=0.6):
         
         h, w = utils.make_wcsheader(ra=0, dec=ddeg, size=ai*3600, 
                                     pixscale=PIXEL_SCALE)
-        h['CRPIX1'] += 0.5
-        h['CRPIX2'] += 0.5
+        h['CRPIX1'] += offset_crpix
+        h['CRPIX2'] += offset_crpix
         
         ras = np.linspace(0, 2*np.pi, np.maximum(mn[j]+1, 1))[:-1]
         
@@ -584,7 +584,7 @@ def exposure_map(ra, dec, rsize, name, filt='F160W', s0=16, cmap='viridis', figs
         # Tile labels
         un = utils.Unique(res['tile'], verbose=False)
 
-        dp = 512*0.1/3600
+        dp = 512 * 0.1 / 3600
         rp = dp/cosd
     
         for t in un.values:
