@@ -208,6 +208,18 @@ def initialize_table():
     """
     )
 
+    now = utils.nowtime().mjd
+
+    prev = db.SQL(f"""
+        SELECT DISTINCT ON (subtile_prefix, assoc_mosaic_combine.assoc_name, assoc_mosaic_combine.filter)
+        assoc_mosaic_combine.assoc_name, assoc_mosaic_combine.filter,
+               subtile_prefix, tile, assoc_mosaic_combine.status,
+               ({now} - modtime) as days_ago
+        FROM assoc_mosaic_combine, assoc_table
+        WHERE assoc_mosaic_combine.assoc_name = assoc_table.assoc_name
+        ORDER BY subtile_prefix, assoc_mosaic_combine.assoc_name, assoc_mosaic_combine.filter, assoc_table.modtime
+    """)
+
     prev = db.SQL("SELECT assoc_name, filter, subtile_prefix from assoc_mosaic_combine")
     keep = ~np.isin(rows["assoc_name"], prev["assoc_name"])
     rows = rows[keep]
@@ -361,6 +373,51 @@ def get_subtile_cutout_wcs(
     }
 
     return out
+
+
+def run_one_subtile(row=None):
+    """
+    Run one subtile from the queue
+    """
+    if row is None:
+        row = db.SQL("""
+            SELECT subtile_prefix, filter, count(*)
+            FROM assoc_mosaic_combine
+            WHERE status = 0
+            GROUP BY subtile_prefix, filter
+            ORDER BY RANDOM() LIMIT 1
+        """)
+        if len(row) == 0:
+            row = None
+        else:
+            row = row[0]
+
+    elif row in ["test"]:
+        row = db.SQL("""
+            SELECT subtile_prefix, filter, count(*), max(status) as status
+            FROM assoc_mosaic_combine
+            WHERE subtile_prefix = 'tile-0661x20y12'
+                  AND filter = 'F356W-CLEAR'
+            GROUP BY subtile_prefix, filter
+            ORDER BY RANDOM() LIMIT 1
+        """)
+        if len(row) == 0:
+            row = None
+        else:
+            row = row[0]
+
+    if row is None:
+        print("Nothing to do in assoc_mosaic_combine")
+        return None
+
+    result = process_subtile(
+        subtile_prefix=row["subtile_prefix"],
+        filter=row["filter"],
+        clean=True,
+        avoid_overlap=True,
+    )
+
+    return row
 
 
 def process_subtile(
@@ -608,6 +665,8 @@ def process_subtile(
         AND assoc_name in ({','.join(db.quoted_strings(tile_rows['assoc_name'][~complete]))})
     """
     )
+
+    return True
 
 
 def all_catalogs():
