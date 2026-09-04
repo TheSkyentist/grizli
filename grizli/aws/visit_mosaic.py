@@ -673,11 +673,17 @@ def all_catalogs():
     """
     Make all catalogs
     """
+    from grizli.aws.visit_mosaic import make_subtile_catalog
+    from grizli.aws import db
+    import numpy as np
+    
     pre = db.SQL(
         """
-        SELECT subtile_prefix, string_agg(distinct(filter), ' '), count(distinct(filter)) as nfilt, count(*) as nassoc
+        SELECT subtile_prefix, string_agg(distinct(filter), ' '), count(distinct(filter)) as nfilt, count(*) as nassoc,
+        min(status) as min_status, max(status) as max_status
         FROM assoc_mosaic_combine
-        WHERE status = 2
+        WHERE status in (0, 1, 2)
+        AND tile = 661
         GROUP BY subtile_prefix
         ORDER BY count(distinct(filter)) desc, subtile_prefix
     """
@@ -690,12 +696,45 @@ def all_catalogs():
         make_subtile_catalog(subtile_prefix=prefix)
 
 
+# Default parameters for catalogs
+DEFAULT_FILTER_COMBINATIONS = {
+    "ir": [
+        "F444W-CLEAR",
+        "F356W-CLEAR",
+        "F277W-CLEAR",
+        "F410M-CLEAR",
+        "F300M-CLEAR",
+        "F335M-CLEAR",
+        "F360M-CLEAR",
+        "F430M-CLEAR",
+        "F460M-CLEAR",
+        "F480M-CLEAR",
+        "CLEARP-F277W",
+        "CLEARP-F356W",
+        "CLEARP-F444W",
+    ]
+}
+
+DEFAULT_BLOCK_FILTERS = [
+    "F090W-CLEAR",
+    "F115W-CLEAR",
+    "F150W-CLEAR",
+    "F200W-CLEAR",
+    "F182M-CLEAR",
+    "F210M-CLEAR",
+]
+
 def make_subtile_catalog(
     subtile_prefix="tile-2582x30y36",
     version="v7.0",
     count_only=False,
     avoid_overlap=True,
     clean=True,
+    bucket="grizli-v2",
+    comb=DEFAULT_FILTER_COMBINATIONS,
+    block_filters=DEFAULT_BLOCK_FILTERS,
+    bkg_params={"bw": 50, "bh": 50, "fw": 3, "fh": 3, "pixel_scale": 0.04},
+    threshold=1.5,
 ):
     """
     Make a catalog of all available filters for a particular subtile
@@ -704,7 +743,7 @@ def make_subtile_catalog(
     from grizli.pipeline import auto_script
     from grizli import prep
 
-    lock_file = f"{subtile_prefix}.lock"
+    lock_file = f"lock.cat.{subtile_prefix}.txt"
     if os.path.exists(lock_file):
         return lock_file
 
@@ -726,10 +765,10 @@ def make_subtile_catalog(
         f"""
         SELECT * FROM assoc_mosaic_combine
         WHERE subtile_prefix = '{subtile_prefix}'
+            AND status = 2
     """
     )
-
-    bucket = "grizli-v2"
+    
     object_path = f"assoc_mosaic/combined/{version}/{tile_rows['tile'][0]}"
 
     unf = utils.Unique(tile_rows["filter"])
@@ -758,33 +797,6 @@ def make_subtile_catalog(
 
     root = subtile_prefix
 
-    comb = {
-        "ir": [
-            "F444W-CLEAR",
-            "F356W-CLEAR",
-            "F277W-CLEAR",
-            "F410M-CLEAR",
-            "F300M-CLEAR",
-            "F335M-CLEAR",
-            "F360M-CLEAR",
-            "F430M-CLEAR",
-            "F460M-CLEAR",
-            "F480M-CLEAR",
-            "CLEARP-F277W",
-            "CLEARP-F356W",
-            "CLEARP-F444W",
-        ]
-    }
-
-    block_filters = [
-        "F090W-CLEAR",
-        "F115W-CLEAR",
-        "F150W-CLEAR",
-        "F200W-CLEAR",
-        "F182M-CLEAR",
-        "F210M-CLEAR",
-    ]
-
     mosaic_file = f"{root}-ir_drc_sci.fits.gz"
     if not os.path.exists(mosaic_file):
         status = auto_script.make_filter_combinations(
@@ -799,10 +811,10 @@ def make_subtile_catalog(
     phot_apertures = prep.SEXTRACTOR_PHOT_APERTURES_ARCSEC[:3]
     print(phot_apertures)
 
-    auto_script.multiband_catalog(
+    result = auto_script.multiband_catalog(
         field_root=root,
-        threshold=1.5,
-        bkg_params={"bw": 50, "bh": 50, "fw": 3, "fh": 3, "pixel_scale": 0.04},
+        threshold=threshold,
+        bkg_params=bkg_params,
         get_all_filters=True,
         phot_err_scale=1.0,
         phot_apertures=phot_apertures,
@@ -854,6 +866,8 @@ def make_subtile_catalog(
                 msg = f"    rm {file_}"
                 utils.log_comment(utils.LOGFILE, msg, verbose=True)
                 os.remove(file_)
+
+    return result
 
 
 ### TBD: make catalogs and detection images.  Photometry by epoch?
