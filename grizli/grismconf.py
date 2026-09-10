@@ -2666,10 +2666,14 @@ class CRDSGrismConf:
 
     def load_new_sensitivity_curve(self, verbose=True, **kwargs):
         """
-        Replace +1 NIRCam sensitivity curves with Nov 10, 2023 updates
+        Replace internally-computed sensitivity curves with an external
+        calibration, where available.
 
+        NIRISS dispatches to `load_niriss_sensitivity_curve`.
+
+        NIRCam: replace +1 sensitivity curves with Nov 10, 2023 updates.
         Files generated with the calibration data of P330E from program
-        CAL-1538 (K. Gordon)
+        CAL-1538 (K. Gordon).
 
         Download the FITS files from the link below and put them in
         ``$GRIZLI/CONF/GRISM_NIRCAM/``.
@@ -2682,10 +2686,15 @@ class CRDSGrismConf:
             Print messages to the terminal.
         """
 
-        path = os.path.join(GRIZLI_PATH, "CONF", "GRISM_NIRCAM")
         meta = self.crds_parameters
+
+        if meta["meta.instrument.name"] == "NIRISS":
+            self.load_niriss_sensitivity_curve(verbose=verbose)
+            return None
+
+        path = os.path.join(GRIZLI_PATH, "CONF", "GRISM_NIRCAM")
         if meta["meta.instrument.name"] != "NIRCAM":
-            msg = "load_new_sensitivity_curve: only defined for NIRCAM ({0})"
+            msg = "load_new_sensitivity_curve: only defined for NIRCAM/NIRISS ({0})"
             utils.log_comment(
                 utils.LOGFILE,
                 msg.format(meta["meta.instrument.name"]),
@@ -2709,5 +2718,61 @@ class CRDSGrismConf:
 
             si = utils.read_catalog(sens_file)
 
+            # NIRCam override files store WAVELENGTH in Angstrom, so scale
+            # to the microns convention used by SENS_data
             self.SENS_data["+1"] = [si["WAVELENGTH"] / 1.0e4, si["SENSITIVITY"]]
             self.sens_ref_file = sens_file
+
+    def load_niriss_sensitivity_curve(self, verbose=True):
+        """
+        Replace NIRISS sensitivity curves with the NGDEEP calibration
+        (Pirzkal et al. 2024, https://arxiv.org/abs/2312.09972), tag ``v5``
+        of https://github.com/npirzkal/NGDEEP_NIRISS_CALIB.
+
+        Files are expected in ``$GRIZLI/CONF/``, named
+        ``NIRISS_NIS_{grism}_{filter}_{order}_sens_pmap0041.fits`` (e.g.
+        ``NIRISS_NIS_GR150C_F115W_+1_sens_pmap0041.fits``), with columns
+        ``wavelength`` (microns), ``sensitivity`` and ``error``. Orders
+        without a matching file (e.g. F090W, not covered by that release)
+        are left as computed by `get_photom`.
+
+        Parameters
+        ----------
+        verbose : bool
+            Print messages to the terminal.
+        """
+        path = os.path.join(GRIZLI_PATH, "CONF")
+
+        grism = self.pupil  # NIRISS stores the grism (GR150C/R) as "pupil"
+        filt = self.filter
+
+        # NGDEEP names the zeroth order file "+0", grismconf calls it "0"
+        order_tokens = {"0": "+0"}
+
+        for order in self.orders:
+            token = order_tokens.get(order, order)
+            sens_file = os.path.join(
+                path, f"NIRISS_NIS_{grism}_{filt}_{token}_sens_pmap0041.fits"
+            )
+
+            if not os.path.exists(sens_file):
+                msg = f"load_niriss_sensitivity_curve: {sens_file} not found, "
+                msg += f"order {order} sensitivity left as computed by get_photom"
+                utils.log_comment(utils.LOGFILE, msg, verbose=verbose)
+                continue
+
+            si = utils.read_catalog(sens_file)
+            cols = {c.lower(): c for c in si.colnames}
+
+            # NGDEEP's WAVELENGTH column is already in microns, matching
+            # the SENS_data convention -- unlike the NIRCam override above,
+            # do NOT apply the Angstrom->micron (/1.e4) scaling here.
+            wave = np.asarray(si[cols["wavelength"]], dtype=float)
+            sens = np.asarray(si[cols["sensitivity"]], dtype=float)
+
+            self.SENS_data[order] = [wave, sens]
+            self.sens_ref_file = sens_file
+
+            msg = "grismconf.CRDSGrismConf: replace sensitivity curve with "
+            msg += f"{sens_file}"
+            utils.log_comment(utils.LOGFILE, msg, verbose=verbose)
