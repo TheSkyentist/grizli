@@ -817,6 +817,9 @@ def get_config_filename(
 
         conf_files = []
         conf_files.append(
+            os.path.join(GRIZLI_PATH, "CONF/{0}_{1}_specwcs.asdf".format(grism, filter))
+        )
+        conf_files.append(
             os.path.join(GRIZLI_PATH, "CONF/{0}.{1}.221215.conf".format(grism, filter))
         )
         conf_files.append(
